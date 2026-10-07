@@ -1,0 +1,16 @@
+# Secrets - never commit real values, only *.example files
+agent-dir/sap_cred.env
+agent-dir-template/sap_cred.env
+**/sap_cred.env
+!**/sap_cred.env.example
+
+**/.cdsrc-private.json
+!**/.cdsrc-private.json.example
+
+# Runtime artifacts
+relay.log
+relay.err.log
+relay.stdin
+*.log
+
+node_modules/
