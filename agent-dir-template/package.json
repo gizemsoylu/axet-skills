@@ -1,0 +1,16 @@
+{
+  "name": "agent-dir",
+  "version": "1.0.0",
+  "description": "ABAP ADT relay runtime deps (SAP Cloud SDK connectivity + http-client).",
+  "main": "index.js",
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "keywords": [],
+  "author": "",
+  "license": "ISC",
+  "dependencies": {
+    "@sap-cloud-sdk/connectivity": "^4.9.1",
+    "@sap-cloud-sdk/http-client": "^4.9.1"
+  }
+}
