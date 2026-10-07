@@ -199,6 +199,45 @@ GET .../programs/programs/<name_lowercase>/source/main
 (A GET without `Accept: text/plain` can get a `406 Not Acceptable` from
 this resource — always set it explicitly when reading source back.)
 
+## There is no REST endpoint to "run" a classic report and get its WRITE output
+
+Do **not** spend time trying to execute a classic `REPORT ... WRITE:`
+program through the ADT REST API and capture its list output — this was
+tried exhaustively and confirmed to be a hard platform limitation, not a
+missing header/format issue:
+- `POST .../programs/programs/<name>?method=run` → `400
+  ExceptionInvalidData "System expected the element '{...}abapProgram'"`
+  (the resource interprets POST as an update, requiring the full
+  `program:abapProgram` body — there is no `run` action on it).
+- `POST .../programs/programs/<name>?_action=RUN` → `405 Method Not
+  Allowed`.
+- `GET` with either of the above query strings just returns the normal
+  object metadata (query params are silently ignored on GET).
+- Guessed resources like `/sap/bc/adt/debugger/execution/<name>` or
+  `.../programs/programs/<name>/console` → `404 Not Found`.
+- Classic program list output (`WRITE`) being shown in the ADT "ABAP
+  Console" view when pressing **F9** in Eclipse is a **frontend-only**
+  Eclipse-IDE feature (NetWeaver 7.52+): Eclipse runs the program through
+  an interactive SAP GUI-protocol session under the hood and renders the
+  classic list in the console view — there is no corresponding "give me
+  the list output as text over REST" resource.
+- `IF_OO_ADT_CLASSRUN` console classes (the `out->write()` style, meant to
+  be run with F9 as a "console application") are also an Eclipse
+  IDE-integrated feature; no public ADT REST client library (including
+  `marcellourbani/abap-adt-api`, which has no `run`/`console`/`classrun`
+  module at all — checked its full `src/api/` file list) implements or
+  documents a REST call for it.
+
+**Bottom line:** if a user wants to see program output from an ADT-created
+report, the only real options are (a) open it in SAP GUI / Eclipse ADT
+and run it there (F8/F9), (b) submit it as a background job via RFC
+(`BAPI_XMI_LOGON` + `JOB_OPEN`/`JOB_SUBMIT`/`JOB_CLOSE` or similar) and
+read the spool — which requires an RFC-capable channel, not the plain
+HTTP relay this skill/the `abap-adt-relay` skill provides — or (c) if the
+goal is just to prove the object was created/activated correctly, use the
+read-back-source + activation-success-message pattern in step 6/7 above
+as the verification instead of a live run.
+
 ## Credential handling
 
 Same rule as `abap-adt-relay`: load `sap_cred.env` into env vars silently
