@@ -236,7 +236,96 @@ read the spool — which requires an RFC-capable channel, not the plain
 HTTP relay this skill/the `abap-adt-relay` skill provides — or (c) if the
 goal is just to prove the object was created/activated correctly, use the
 read-back-source + activation-success-message pattern in step 6/7 above
-as the verification instead of a live run.
+as the verification instead of a live run, **or (d) use ABAP Unit tests
+instead — see next section — which do have a documented, working "run and
+get real results back" REST endpoint and are a much better live demo than
+trying to coax list output out of a classic report.**
+
+## Running ABAP Unit tests and getting real pass/fail results (this works!)
+
+Unlike classic report execution, **ABAP Unit test execution has a proper
+REST endpoint and returns real, structured pass/fail results** — this is
+the best "run code live and show real output" demo available over plain
+ADT REST (verified end-to-end against S25).
+
+### Create a class with a `testclasses` include
+Same `createObject` pattern as a program, but for `CLAS/OC`, and the
+creation body must declare the test-classes include up front:
+```xml
+<?xml version="1.0" encoding="UTF-8"?>
+<class:abapClass xmlns:adtcore="http://www.sap.com/adt/core" xmlns:class="http://www.sap.com/adt/oo/classes"
+  adtcore:description="..." adtcore:language="EN" adtcore:name="ZMY_CLASS" adtcore:type="CLAS/OC"
+  adtcore:masterLanguage="EN" adtcore:responsible="<SAP_USER_UPPERCASE>" class:final="true" class:visibility="public">
+<adtcore:packageRef adtcore:name="ZMY_PACKAGE"/>
+<class:include adtcore:name="CLAS/OC" adtcore:type="CLAS/OC" class:includeType="testclasses"/>
+<class:superClassRef/>
+</class:abapClass>
+```
+`POST /sap/bc/adt/oo/classes?corrNr=<transport>`, `Content-Type: application/*`.
+
+### Lock once, write both includes, unlock
+Lock the **class main URL** (`.../oo/classes/<name>?_action=LOCK&...`), the
+one `lockHandle` is valid for both includes:
+```
+PUT .../oo/classes/<name>/source/main?lockHandle=<handle>&corrNr=<tr>
+PUT .../oo/classes/<name>/includes/testclasses?lockHandle=<handle>&corrNr=<tr>
+```
+**Both PUTs need `Accept: text/plain` in addition to `Content-Type:
+text/plain; charset=utf-8`** — omitting `Accept` gets `406
+ExceptionResourceNotAcceptable "Accepted content types: text/plain"` (this
+did **not** show up when PUTting a plain program's `source/main` earlier
+in this skill — class-object PUTs are stricter about `Accept`, always set
+both headers to be safe for any object type).
+If `.../includes/testclasses` 404s/errors on your system version, fall
+back to `.../source/testclasses` — both path shapes exist across releases.
+```
+POST .../oo/classes/<name>?_action=UNLOCK&lockHandle=<handle>
+```
+
+### Activate (same as any object)
+```xml
+<adtcore:objectReference adtcore:uri="/sap/bc/adt/oo/classes/<name_lowercase>"
+  adtcore:type="CLAS/OC" adtcore:name="ZMY_CLASS"/>
+```
+
+### Run the tests
+```
+POST /sap/bc/adt/abapunit/testruns
+  Content-Type: application/*
+  Accept: application/*
+```
+```xml
+<?xml version="1.0" encoding="UTF-8"?>
+<aunit:runConfiguration xmlns:aunit="http://www.sap.com/adt/aunit">
+<external><coverage active="false"/></external>
+<options>
+<uriType value="semantic"/>
+<testDeterminationStrategy sameProgram="true" assignedTests="false"/>
+<testRiskLevels harmless="true" dangerous="true" critical="true"/>
+<testDurations short="true" medium="true" long="true"/>
+<withNavigationUri enabled="true"/>
+</options>
+<adtcore:objectSets xmlns:adtcore="http://www.sap.com/adt/core">
+<objectSet kind="inclusive">
+<adtcore:objectReferences>
+<adtcore:objectReference adtcore:uri="/sap/bc/adt/oo/classes/<name_lowercase>"/>
+</adtcore:objectReferences>
+</objectSet>
+</adtcore:objectSets>
+</aunit:runConfiguration>
+```
+Set all `testRiskLevels`/`testDurations` flags to `"true"` so nothing gets
+filtered out regardless of how the test methods are classified.
+
+The response is a real `<aunit:runResult>` tree, one `<testClass>` per
+local test class, one `<testMethod>` per test method; a method with **no
+`<alerts>` child passed**, a method with an `<alerts><alert
+kind="failedAssertion" ...><title>...</title><details>...Expected [X]
+Actual [Y]...</details></alert></alerts>` **failed** with the exact
+assertion diff. This was verified live: a class with one passing
+`assert_equals` and one deliberately-wrong one produced exactly one clean
+`<testMethod>` and one `<testMethod>` with a `failedAssertion` alert
+showing `Expected [5] Actual [4]`.
 
 ## Credential handling
 
