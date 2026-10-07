@@ -327,6 +327,84 @@ assertion diff. This was verified live: a class with one passing
 `<testMethod>` and one `<testMethod>` with a `failedAssertion` alert
 showing `Expected [5] Actual [4]`.
 
+## Creating a CDS view (DDLS) and previewing real live data (best "modern SAP" demo)
+
+A CDS view over a standard master-data table, queried live via ADT's
+**data preview** endpoint, is a stronger "real life" demo than a toy class
+or a classic report: CDS views are the standard modern SAP data-modeling
+building block, and this flow returns **actual rows from the system**
+(verified: queried `T005T` country-name master data and got real country
+names/keys back, e.g. `DE`/`Germany`, `TR`/`Türkiye`, `US`/`USA`).
+
+### 1. Create
+`creationPath` for `DDLS/DF`:
+`POST /sap/bc/adt/ddic/ddl/sources?corrNr=<transport>`, `Content-Type: application/*`:
+```xml
+<?xml version="1.0" encoding="UTF-8"?>
+<ddl:ddlSource xmlns:ddl="http://www.sap.com/adt/ddic/ddlsources" xmlns:adtcore="http://www.sap.com/adt/core"
+  adtcore:name="ZMY_CDS_VIEW" adtcore:type="DDLS/DF" adtcore:language="EN" adtcore:masterLanguage="EN"
+  adtcore:responsible="<SAP_USER_UPPERCASE>" adtcore:description="...">
+<adtcore:packageRef adtcore:name="ZMY_PACKAGE"/>
+</ddl:ddlSource>
+```
+
+### 2. Lock, write DDL source, unlock
+Same lock/unlock pattern as classes/programs
+(`.../ddic/ddl/sources/<name_lowercase>?_action=LOCK&accessMode=MODIFY`,
+`X-sap-adt-sessiontype: stateful` on every call). Write the DDL text to
+`.../ddic/ddl/sources/<name_lowercase>/source/main?lockHandle=<handle>&corrNr=<tr>`
+with `Content-Type: text/plain; charset=utf-8` **and** `Accept:
+text/plain` (same 406 trap as classes — always set both). A minimal,
+safe-everywhere DDL body (standard table, no custom dependencies, no
+sensitive data):
+```abap
+@AbapCatalog.sqlViewName: 'ZMYCDSVIEWSQL'
+@AbapCatalog.compiler.compareFilter: true
+@AccessControl.authorizationCheck: #NOT_REQUIRED
+@EndUserText.label: 'Demo CDS view'
+define view ZMY_CDS_VIEW as select from t005t
+{
+  key land1 as CountryKey,
+  key spras as Language,
+  landx     as CountryName
+}
+where spras = 'E'
+```
+`AbapCatalog.sqlViewName` is limited to 16 characters (classic SQL-view
+naming rule) — keep it short regardless of how long the CDS entity name
+itself is.
+
+### 3. Activate
+Same `/sap/bc/adt/activation` call as any object, with
+`adtcore:type="DDLS/DF"`. A `200` with `checkExecuted="true"
+activationExecuted="true"` is success even if `generationExecuted="false"`
+— that third flag just means no separate classic SQL view database object
+was (re)generated, which is normal/harmless on HANA-based systems where
+CDS views don't need one; data preview still works regardless.
+
+### 4. Query it live — the actual "run and see real output" step
+```
+POST /sap/bc/adt/datapreview/ddic?rowNumber=20&ddicEntityName=<CDS_view_name>
+  Content-Type: text/plain
+  Accept: application/xml, application/vnd.sap.adt.datapreview.table.v1+xml
+  X-CSRF-Token: <csrf>
+  X-sap-adt-sessiontype: stateful
+  body: (empty string is fine for a plain preview of the view's own definition)
+```
+`ddicEntityName` is the CDS view name, URL-encoded (no leading slash
+needed for a `Z*`/`Y*` custom view — the `%2FDMO%2FTRAVEL`-style encoding
+seen in some examples is specific to namespaced `/DMO/...` demo content,
+not a general requirement).
+
+Response is `<dataPreview:tableData>` with one `<dataPreview:columns>`
+block per column, each holding `<dataPreview:metadata>` (name/type/length)
+and a `<dataPreview:dataSet>` of `<dataPreview:data>` values — i.e. a
+column-oriented table dump of **real rows actually in the system**, not a
+dry-run or canned response. There's also a sibling
+`/sap/bc/adt/datapreview/freestyle?rowNumber=<n>` endpoint for arbitrary
+`SELECT ...` text bodies instead of a named DDIC entity, for ad-hoc
+queries beyond a single CDS view/table.
+
 ## Credential handling
 
 Same rule as `abap-adt-relay`: load `sap_cred.env` into env vars silently
