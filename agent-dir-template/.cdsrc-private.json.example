@@ -1,0 +1,35 @@
+{
+  "requires": {
+    "[hybrid]": {
+      "connectivity": {
+        "credentials": {
+          "clientid": "<your-connectivity-service-clientid>",
+          "clientsecret": "<your-connectivity-service-clientsecret>",
+          "credential-type": "binding-secret",
+          "identityzone": "<your-subaccount-identityzone>",
+          "onpremise_proxy_host": "127.0.0.1",
+          "onpremise_proxy_http_port": "20003",
+          "onpremise_proxy_ldap_port": "20001",
+          "onpremise_proxy_port": "20003",
+          "onpremise_proxy_rfc_port": "20001",
+          "onpremise_socks5_proxy_port": "20004",
+          "region_configuration_id": "<your-region-id>",
+          "tenantid": "<your-tenant-id>",
+          "tenantmode": "dedicated",
+          "token-type": ["xsuaa", "ias"],
+          "token_service_domain": "authentication.eu10.hana.ondemand.com",
+          "token_service_url": "https://<your-subaccount>.authentication.eu10.hana.ondemand.com",
+          "uaadomain": "authentication.eu10.hana.ondemand.com",
+          "url": "https://<your-subaccount>.authentication.eu10.hana.ondemand.com",
+          "xsappname": "<your-connectivity-service-xsappname>"
+        }
+      },
+      "destinations": {
+        "binding": {
+          "instance": "<your-destination-service-instance-name>",
+          "key": "<your-destination-service-key-name>"
+        }
+      }
+    }
+  }
+}
